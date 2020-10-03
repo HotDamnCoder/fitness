@@ -63,4 +63,3 @@ nfp = session.get(MFP_NEW_FOOD_URL)
 token = BeautifulSoup(nfp.text, features="html.parser").find('input', {'name': 'authenticity_token'}).attrs['value']
 MFP_NEW_FOOD_PAYLOAD['authenticity_token'] = token
 new_food_response = session.post(MFP_NEW_FOOD_URL, MFP_NEW_FOOD_PAYLOAD)
-
