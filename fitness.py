@@ -39,10 +39,10 @@ MFP_NEW_FOOD_URL = 'https://www.myfitnesspal.com/food/new'
 MFP_NEW_FOOD_PAYLOAD = {'utf8': '✓',
                         'authenticity_token': None,
                         'date': None,
-                        'food[brand]': None,
+                        'food[brand]': 'NRG',
                         'food[description]': None,
                         'weight[serving_size]': None,
-                        'servingspercontainer': None,
+                        'servingspercontainer': '1',
                         'nutritional_content[calories]': '0',
                         'nutritional_content[sodium]': '0',
                         'nutritional_content[fat]': '0',
@@ -62,7 +62,7 @@ MFP_NEW_FOOD_PAYLOAD = {'utf8': '✓',
                         'nutritional_content[iron]': '0',
                         'addtodiary': 'yes',
                         'food_entry[quantity]': '1.0',
-                        'food_entry[meal_id]': None,
+                        'food_entry[meal_id]': '1',
                         'preserve_exact_description_and_brand': 'true',
                         'continue': 'Save'}
 
@@ -70,46 +70,74 @@ MFP_NEW_FOOD_SUBMIT_URL = 'https://www.myfitnesspal.com/food/duplicate'
 MFP_NEW_FOOD_SUBMIT_PAYLOAD = {'utf8': '✓',
                                'authenticity_token': None,
                                'date': None,
-                               'food[brand]': None,
+                               'food[brand]': 'NRG',
                                'food[description]': None,
-                               'meal': None
+                               'meal': '0'
                                }
-MENU_URL = 'https://nrg.edu.ee/et/toitlustamine'
+CATERING_PAGE_URL = 'https://nrg.edu.ee/et/toitlustamine'
 
 session = requests.session()
 
-menu_page_response = session.get(MENU_URL)
-links = BeautifulSoup(menu_page_response.text, features="html.parser").find_all('a')
+catering_page = session.get(CATERING_PAGE_URL)
+links_from_catering_page = BeautifulSoup(catering_page.text, features="html.parser").find_all('a')
 
 menu_links = []
-menu_summaries = []
-for link in links:
+weekly_menu_summaries = {}
+for link in links_from_catering_page:
     if DATEFROM in link.text or NEXTWEEKDATEFROM in link.text:
-        if link.attrs['href'] not in menu_links:
-            pdfReader = PyPDF2.PdfFileReader(io.BytesIO(session.get(link.attrs['href']).content))
-            text = ''.join([pdfReader.getPage(i).extractText().replace('\n', '') for i in range(2)])
-            menu_summary = {}
-            i = 0
-            for summary in re.findall('Kokku\\s+.*?(?=\\s{2,})', text):
-                values = [float(nr.replace(',', '.')) for nr in re.search('\\s+.+', summary).group(0).strip().split()]
-                nutritional_values = {}
-                j = 0
-                for value in values:
-                    nutritional_values[NUTRITION[j]] = value
-                    j += 1
-                menu_summary[DAYS[i]] = nutritional_values
-                i += 1
-            menu_summaries.append(menu_summary)
-            menu_links.append(link.attrs['href'])
+        link_url = link.attrs['href']
+        if link_url not in menu_links:
+            menuPDFReader = PyPDF2.PdfFileReader(io.BytesIO(session.get(link_url).content))
+            menu_text = ''.join([menuPDFReader.getPage(i).extractText().replace('\n', '') for i in range(2)])
+            week_menu_summary = {}
+            day_count = 0
+            for summary in re.findall('Kokku\\s+.*?(?=\\s{2,})', menu_text):
+                nuts = [float(nr.replace(',', '.')) for nr in re.search('\\s+.+', summary).group(0).strip().split()]
+                menu_nutritional_values = {}
+                nut_count = 0
+                for value in nuts:
+                    menu_nutritional_values[NUTRITION[nut_count]] = value
+                    nut_count += 1
+                week_menu_summary[DAYS[day_count]] = menu_nutritional_values
+                day_count += 1
+            weekly_menu_summaries[link.text] = week_menu_summary
+            menu_links.append(link_url)
 
-login_response = session.post(MFP_LOGIN_URL, MFP_LOGIN_PAYLOAD)
+session.post(MFP_LOGIN_URL, MFP_LOGIN_PAYLOAD)
 
-nfp = session.get(MFP_NEW_FOOD_URL)
-token = BeautifulSoup(nfp.text, features="html.parser").find('input', {'name': 'authenticity_token'}).attrs['value']
-MFP_NEW_FOOD_SUBMIT_PAYLOAD['authenticity_token'] = token
-new_food_submit_response = session.post(MFP_NEW_FOOD_SUBMIT_URL, MFP_NEW_FOOD_SUBMIT_PAYLOAD)
+for week_menu_summary in weekly_menu_summaries:
+    day_count = 0
+    for day in weekly_menu_summaries[week_menu_summary]:
+        link_start_date = week_menu_summary.split('-')[0].strip()
+        date = (datetime.datetime.strptime(link_start_date, '%d.%m.%Y') + datetime.timedelta(days=day_count)).date()
 
-nfp = session.get(MFP_NEW_FOOD_URL)
-token = BeautifulSoup(nfp.text, features="html.parser").find('input', {'name': 'authenticity_token'}).attrs['value']
-MFP_NEW_FOOD_PAYLOAD['authenticity_token'] = token
-new_food_response = session.post(MFP_NEW_FOOD_URL, MFP_NEW_FOOD_PAYLOAD)
+        day_menu = weekly_menu_summaries[week_menu_summary][day]
+        kcal = round(day_menu['kcal'])
+        protein = round(day_menu['valgud'])
+        fat = round(day_menu['rasvad'])
+        carbohydrates = round(day_menu['süsivesikud'])
+        weight = round(kcal + protein + fat + carbohydrates)
+
+        MFP_NEW_FOOD_SUBMIT_PAYLOAD['food[description]'] = str(date)
+        MFP_NEW_FOOD_SUBMIT_PAYLOAD['date'] = str(date)
+        MFP_NEW_FOOD_PAYLOAD['date'] = str(date)
+        MFP_NEW_FOOD_PAYLOAD['nutritional_content[calories]'] = str(kcal)
+        MFP_NEW_FOOD_PAYLOAD['nutritional_content[protein]'] = str(protein)
+        MFP_NEW_FOOD_PAYLOAD['nutritional_content[fat]'] = str(fat)  # yes
+        MFP_NEW_FOOD_PAYLOAD['nutritional_content[carbs]'] = str(carbohydrates)
+        MFP_NEW_FOOD_PAYLOAD['weight[serving_size]'] = str(weight) + 'g'
+        MFP_NEW_FOOD_PAYLOAD['food[description]'] = str(date)
+
+        nfp = session.get(MFP_NEW_FOOD_URL)
+        token = BeautifulSoup(nfp.text, features="html.parser").find('input', {'name': 'authenticity_token'}).attrs['value']
+        MFP_NEW_FOOD_SUBMIT_PAYLOAD['authenticity_token'] = token
+        new_food_submit_response = session.post(MFP_NEW_FOOD_SUBMIT_URL, MFP_NEW_FOOD_SUBMIT_PAYLOAD)
+
+        nfp = session.get(MFP_NEW_FOOD_URL)
+        token = BeautifulSoup(nfp.text, features="html.parser").find('input', {'name': 'authenticity_token'}).attrs['value']
+        MFP_NEW_FOOD_PAYLOAD['authenticity_token'] = token
+        new_food_response = session.post(MFP_NEW_FOOD_URL, MFP_NEW_FOOD_PAYLOAD)
+
+        day_count += 1
+
+
