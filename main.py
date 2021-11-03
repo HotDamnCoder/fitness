@@ -1,3 +1,4 @@
+from ast import Try
 import datetime
 from datetime import datetime as dt
 from MFP_API import MFP_API
@@ -18,7 +19,13 @@ for menu_start_date in weekly_menu_summaries:
     week_menu = weekly_menu_summaries[menu_start_date]
 
     for day_nutritions in week_menu:
-        date = dt.strptime(menu_start_date, '%d.%m')
+
+        try:
+            date = dt.strptime(menu_start_date, '%d.%m')
+        except ValueError:
+            date = dt.strptime(menu_start_date, '%d.%m.%y')
+
+
         date = date.replace(year=dt.today().year)
         date = (date + datetime.timedelta(days=day_count)).date()
 

@@ -73,7 +73,7 @@ class Catering:
             self.__getCateringPage())
         for link in catering_page_links:
             # * if links text matches format like: '20.09 - 24.09.2021'
-            if re.match(r'\d\d\.\d\d - \d\d\.\d\d\.\d\d\d\d', link.text):
+            if re.match(r'[\d\.]* - [\d\.]*', link.text):
                 menu_link = link.attrs['href']
                 if menu_link not in used_menu_links:
                     menu_start_date = link.text.split(' - ')[0]
