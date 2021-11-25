@@ -71,12 +71,14 @@ class Catering:
 
         catering_page_links = self.__getCateringPageLinks(
             self.__getCateringPage())
+
         for link in catering_page_links:
             # * if links text matches format like: '20.09 - 24.09.2021'
-            if re.match(r'[\d\.]* - [\d\.]*', link.text):
+            link_text = link.text.strip()
+            if re.match(r'[\d\.]* - [\d\.]*', link_text):
                 menu_link = link.attrs['href']
                 if menu_link not in used_menu_links:
-                    menu_start_date = link.text.split(' - ')[0]
+                    menu_start_date = link_text.split(' - ')[0]
                     menu_summary = self.__getMenuSummary(
                         self.__extractLunchMenuText(self.__getMenuPDF(menu_link)))
                     weekly_menu_summaries[menu_start_date] = menu_summary

@@ -20,11 +20,14 @@ for menu_start_date in weekly_menu_summaries:
 
     for day_nutritions in week_menu:
 
+        #! ik this is bad but im too lazy to implement a smarter way to do this
         try:
             date = dt.strptime(menu_start_date, '%d.%m')
         except ValueError:
-            date = dt.strptime(menu_start_date, '%d.%m.%y')
-
+            try:
+                date = dt.strptime(menu_start_date, '%d.%m.%y')
+            except ValueError:
+                date = dt.strptime(menu_start_date, '%d.%m.%Y')
 
         date = date.replace(year=dt.today().year)
         date = (date + datetime.timedelta(days=day_count)).date()
